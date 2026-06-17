@@ -59,4 +59,14 @@ router.post('/create/new', (req, res) => {
   res.status(201).json({ data: newVote });
 });
 
+router.get('/:id/statistics', (req, res) => {
+  const id = parseInt(req.params.id);
+  const stats = voteService.getVoteStatistics(id);
+  if (!stats) {
+    res.status(404).json({ error: '投票不存在' });
+    return;
+  }
+  res.json({ data: stats });
+});
+
 export default router;

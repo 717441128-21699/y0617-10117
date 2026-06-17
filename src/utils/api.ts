@@ -55,6 +55,13 @@ export const api = {
         body: JSON.stringify(data),
       });
     },
+    getAdminList: (type?: string) => {
+      const query = type ? `?type=${type}` : '';
+      return request<{ data: any[] }>(`/notices/admin/list${query}`);
+    },
+    getStatistics: (id: number) => {
+      return request<{ data: any }>(`/notices/${id}/statistics`);
+    },
   },
 
   propertyFee: {
@@ -65,6 +72,9 @@ export const api = {
     getRecords: (householdId?: number) => {
       const query = householdId ? `?householdId=${householdId}` : '';
       return request<{ data: any[] }>(`/property-fee/records${query}`);
+    },
+    getById: (id: number) => {
+      return request<{ data: any }>(`/property-fee/detail/${id}`);
     },
     pay: (id: number, paymentMethod: 'online' | 'offline', channel?: 'wechat' | 'alipay') => {
       return request<{ success: boolean; paidDate: string }>(`/property-fee/${id}/pay`, {
@@ -81,8 +91,27 @@ export const api = {
     getHouseholds: () => {
       return request<{ data: any[] }>('/property-fee/households/list');
     },
+    getBuildings: () => {
+      return request<{ data: string[] }>('/property-fee/buildings/list');
+    },
+    getUnits: (building?: string) => {
+      const query = building ? `?building=${encodeURIComponent(building)}` : '';
+      return request<{ data: string[] }>(`/property-fee/units/list${query}`);
+    },
     create: (data: { householdId: number; period: string; amount: number; dueDate: string }) => {
       return request<{ success: boolean; data?: any; error?: string }>('/property-fee/create/new', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+    batchPreview: (data: { period: string; building?: string; unit?: string; householdIds?: number[]; amountPerHousehold: number; dueDate: string }) => {
+      return request<{ willCreate: any[]; willSkip: any[]; totalAmount: number }>('/property-fee/batch/preview', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+    batchCreate: (data: { period: string; building?: string; unit?: string; householdIds?: number[]; amountPerHousehold: number; dueDate: string }) => {
+      return request<{ success: boolean; createdCount: number; skippedCount: number; data?: any[] }>('/property-fee/batch/create', {
         method: 'POST',
         body: JSON.stringify(data),
       });
@@ -90,6 +119,16 @@ export const api = {
     markPaidOffline: (id: number) => {
       return request<{ success: boolean; paidDate?: string; error?: string }>(`/property-fee/${id}/mark-paid-offline`, {
         method: 'POST',
+      });
+    },
+    getReminders: (householdId?: number) => {
+      const query = householdId ? `?householdId=${householdId}` : '';
+      return request<{ data: any[] }>(`/property-fee/reminders/list${query}`);
+    },
+    createReminders: (propertyFeeIds: number[], message?: string) => {
+      return request<{ success: boolean; createdCount: number; data?: any[]; error?: string }>('/property-fee/reminders/create', {
+        method: 'POST',
+        body: JSON.stringify({ propertyFeeIds, message }),
       });
     },
   },
@@ -128,6 +167,9 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(data),
       });
+    },
+    getStatistics: (id: number) => {
+      return request<{ data: any }>(`/votes/${id}/statistics`);
     },
   },
 

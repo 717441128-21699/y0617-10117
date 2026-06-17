@@ -14,6 +14,8 @@ import {
   X,
   Send,
   Trash2,
+  Building2,
+  UserX,
 } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
 import { api } from '@/utils/api';
@@ -24,7 +26,21 @@ import {
   getStatusColor,
   VOTE_STATUS_LABELS,
 } from '@/utils/format';
-import type { Vote as VoteType } from '../../shared/types';
+import type { Vote as VoteType, Household } from '../../shared/types';
+
+interface VoteStatistics {
+  voteId: number;
+  voteTitle: string;
+  deadline: string;
+  status: 'ongoing' | 'ended';
+  totalHouseholds: number;
+  votedCount: number;
+  notVotedCount: number;
+  participationRate: number;
+  byBuilding: Record<string, { total: number; voted: number; households: Household[] }>;
+  votedHouseholds: Household[];
+  notVotedHouseholds: Household[];
+}
 
 export default function Votes() {
   const { id } = useParams();
@@ -44,6 +60,10 @@ export default function Votes() {
     deadline: '',
   });
   const [submitting, setSubmitting] = useState(false);
+
+  const [showStatisticsModal, setShowStatisticsModal] = useState(false);
+  const [voteStatistics, setVoteStatistics] = useState<VoteStatistics | null>(null);
+  const [statisticsLoading, setStatisticsLoading] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -143,6 +163,19 @@ export default function Votes() {
       alert('创建投票失败，请重试');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const loadVoteStatistics = async (voteId: number) => {
+    setStatisticsLoading(true);
+    try {
+      const response = await api.votes.getStatistics(voteId);
+      setVoteStatistics(response.data as VoteStatistics);
+      setShowStatisticsModal(true);
+    } catch (error) {
+      console.error('加载投票统计失败', error);
+    } finally {
+      setStatisticsLoading(false);
     }
   };
 
@@ -332,25 +365,14 @@ export default function Votes() {
               </div>
             )}
 
-            {detailVote.status === 'ended' && (
-              <div className="bg-gray-50 rounded-xl p-5">
-                <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                  <BarChart3 size={18} />
-                  投票结果统计
-                </h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-gray-500 text-sm">参与户数</p>
-                    <p className="text-2xl font-bold text-gray-800">{detailVote.totalVotes}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-500 text-sm">通过率</p>
-                    <p className="text-2xl font-bold text-success-600">
-                      {detailVote.results ? Math.round((Math.max(...detailVote.results) / detailVote.totalVotes) * 100) : 0}%
-                    </p>
-                  </div>
-                </div>
-              </div>
+            {(detailVote.status === 'ended' || userRole === 'admin') && (
+              <button
+                onClick={() => loadVoteStatistics(detailVote.id)}
+                className="w-full mt-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition-colors flex items-center justify-center gap-2"
+              >
+                <BarChart3 size={20} />
+                查看投票统计详情
+              </button>
             )}
           </div>
         </div>
@@ -397,7 +419,7 @@ export default function Votes() {
             ].map((tab) => (
               <button
                 key={tab.value}
-                onClick={() => setActiveTab(tab.value as any)}
+                onClick={() => setActiveTab(tab.value as 'all' | 'ongoing' | 'ended')}
                 className={`px-4 py-2 rounded-lg font-medium transition-all duration-200
                   ${activeTab === tab.value
                     ? 'bg-primary-600 text-white shadow-md'
@@ -455,15 +477,27 @@ export default function Votes() {
                         </span>
                       </div>
                     </div>
-                    <div className="ml-6 flex-shrink-0">
+                    <div className="ml-6 flex-shrink-0 flex flex-col gap-2">
                       {vote.status === 'ongoing' && !vote.hasVoted ? (
-                        <div className="px-4 py-2 bg-primary-600 text-white text-sm rounded-lg font-medium">
+                        <div className="px-4 py-2 bg-primary-600 text-white text-sm rounded-lg font-medium text-center">
                           去投票
                         </div>
                       ) : (
-                        <div className="px-4 py-2 bg-gray-100 text-gray-600 text-sm rounded-lg font-medium">
+                        <div className="px-4 py-2 bg-gray-100 text-gray-600 text-sm rounded-lg font-medium text-center">
                           查看结果
                         </div>
+                      )}
+                      {(vote.status === 'ended' || userRole === 'admin') && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            loadVoteStatistics(vote.id);
+                          }}
+                          className="px-4 py-2 bg-blue-50 text-primary-600 text-sm rounded-lg font-medium hover:bg-blue-100 transition-colors flex items-center justify-center gap-1"
+                        >
+                          <BarChart3 size={14} />
+                          查看统计
+                        </button>
                       )}
                     </div>
                   </div>
@@ -473,6 +507,132 @@ export default function Votes() {
           </div>
         )}
       </div>
+
+      {showStatisticsModal && voteStatistics && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden animate-fade-in">
+            <div className="flex items-center justify-between p-6 border-b border-gray-100">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-800 font-serif flex items-center gap-2">
+                  <BarChart3 size={20} className="text-primary-600" />
+                  投票统计详情
+                </h2>
+                <p className="text-gray-500 text-sm mt-1">{voteStatistics.voteTitle}</p>
+              </div>
+              <button
+                onClick={() => setShowStatisticsModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X size={20} className="text-gray-500" />
+              </button>
+            </div>
+
+            {statisticsLoading ? (
+              <div className="flex items-center justify-center h-64">
+                <div className="animate-spin rounded-full h-8 w-8 border-4 border-primary-600 border-t-transparent"></div>
+              </div>
+            ) : (
+              <div className="overflow-y-auto max-h-[calc(90vh-100px)]">
+                <div className="p-6 space-y-6">
+                  <div className="grid grid-cols-4 gap-4">
+                    <div className="bg-gray-50 rounded-xl p-4 text-center">
+                      <p className="text-gray-500 text-sm mb-1">应参与户数</p>
+                      <p className="text-2xl font-bold text-gray-800">{voteStatistics.totalHouseholds}</p>
+                    </div>
+                    <div className="bg-green-50 rounded-xl p-4 text-center">
+                      <p className="text-success-600 text-sm mb-1">已投票</p>
+                      <p className="text-2xl font-bold text-success-600">{voteStatistics.votedCount}</p>
+                    </div>
+                    <div className="bg-red-50 rounded-xl p-4 text-center">
+                      <p className="text-danger-600 text-sm mb-1">未投票</p>
+                      <p className="text-2xl font-bold text-danger-600">{voteStatistics.notVotedCount}</p>
+                    </div>
+                    <div className="bg-blue-50 rounded-xl p-4 text-center">
+                      <p className="text-primary-600 text-sm mb-1">参与率</p>
+                      <p className="text-2xl font-bold text-primary-600">{voteStatistics.participationRate}%</p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                      <Building2 size={18} className="text-primary-600" />
+                      按楼栋统计
+                    </h3>
+                    <div className="space-y-3">
+                      {Object.entries(voteStatistics.byBuilding).map(([building, data]) => (
+                        <div key={building} className="bg-gray-50 rounded-xl p-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="font-medium text-gray-800">{building}</span>
+                            <div className="flex items-center gap-3 text-sm">
+                              <span className="text-gray-500">应参与: {data.total}户</span>
+                              <span className="text-success-600">已投票: {data.voted}户</span>
+                              <span className="text-danger-600">未投票: {data.total - data.voted}户</span>
+                            </div>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div
+                              className="bg-primary-500 h-2 rounded-full transition-all duration-500"
+                              style={{ width: `${data.total > 0 ? (data.voted / data.total) * 100 : 0}%` }}
+                            />
+                          </div>
+                          {data.households.length > 0 && (
+                            <div className="mt-3">
+                              <p className="text-xs text-gray-500 mb-2">未投票住户：</p>
+                              <div className="flex flex-wrap gap-2">
+                                {data.households.slice(0, 5).map((h: Household) => (
+                                  <span key={h.id} className="px-2 py-1 bg-danger-100 text-danger-600 text-xs rounded-md">
+                                    {h.building}{h.unit}{h.roomNumber} - {h.ownerName}
+                                  </span>
+                                ))}
+                                {data.households.length > 5 && (
+                                  <span className="px-2 py-1 bg-gray-200 text-gray-600 text-xs rounded-md">
+                                    +{data.households.length - 5} 户
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {voteStatistics.notVotedHouseholds.length > 0 && (
+                    <div>
+                      <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                        <UserX size={18} className="text-danger-500" />
+                        未投票住户列表（{voteStatistics.notVotedHouseholds.length}户）
+                      </h3>
+                      <div className="bg-gray-50 rounded-xl overflow-hidden">
+                        <div className="max-h-60 overflow-y-auto">
+                          <table className="w-full text-sm">
+                            <thead className="bg-gray-100 sticky top-0">
+                              <tr>
+                                <th className="text-left px-4 py-3 font-medium text-gray-600">房号</th>
+                                <th className="text-left px-4 py-3 font-medium text-gray-600">业主姓名</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200">
+                              {voteStatistics.notVotedHouseholds.map((h: Household) => (
+                                <tr key={h.id} className="hover:bg-white">
+                                  <td className="px-4 py-3 text-gray-800">
+                                    {h.building}{h.unit}{h.roomNumber}
+                                  </td>
+                                  <td className="px-4 py-3 text-gray-800">{h.ownerName}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-fade-in">

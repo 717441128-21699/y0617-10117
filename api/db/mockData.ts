@@ -8,6 +8,8 @@ import type {
   VoteRecord,
   Complaint,
   CommitteeMember,
+  NoticeReadRecord,
+  PaymentReminder,
 } from '../../shared/types';
 import { loadData, saveData, hasDataFile } from './fileStorage';
 
@@ -67,9 +69,11 @@ const defaultNotices: Notice[] = [
   },
 ];
 
-const defaultNoticeRead: { noticeId: number; householdId: number; readAt: string }[] = [
-  { noticeId: 3, householdId: 1, readAt: '2024-06-16 10:00:00' },
+const defaultNoticeRead: NoticeReadRecord[] = [
+  { id: 1, noticeId: 3, householdId: 1, readAt: '2024-06-16 10:00:00' },
 ];
+
+const defaultPaymentReminders: PaymentReminder[] = [];
 
 const defaultPropertyFees: PropertyFee[] = [
   { id: 1, householdId: 1, building: '1栋', unit: '1单元', roomNumber: '101', period: '2024-06', amount: 256.50, status: 'unpaid', dueDate: '2024-06-30' },
@@ -262,12 +266,13 @@ function getDefaultNextIds() {
     complaint: defaultComplaints.length + 1,
     committeeMember: defaultCommitteeMembers.length + 1,
     noticeRead: defaultNoticeRead.length + 1,
+    paymentReminder: defaultPaymentReminders.length + 1,
   };
 }
 
 export let households: Household[] = [];
 export let notices: Notice[] = [];
-export let noticeRead: { noticeId: number; householdId: number; readAt: string }[] = [];
+export let noticeRead: NoticeReadRecord[] = [];
 export let propertyFees: PropertyFee[] = [];
 export let maintenanceFunds: MaintenanceFund[] = [];
 export let approvalRecords: ApprovalRecord[] = [];
@@ -275,6 +280,7 @@ export let votes: Vote[] = [];
 export let voteRecords: VoteRecord[] = [];
 export let complaints: Complaint[] = [];
 export let committeeMembers: CommitteeMember[] = [];
+export let paymentReminders: PaymentReminder[] = [];
 
 let nextIds = getDefaultNextIds();
 
@@ -296,6 +302,7 @@ export function persistData() {
     voteRecords,
     complaints,
     committeeMembers,
+    paymentReminders,
     nextIds,
   };
   saveData(data);
@@ -315,6 +322,7 @@ export function initMockData() {
     voteRecords = savedData.voteRecords || [];
     complaints = savedData.complaints || [];
     committeeMembers = savedData.committeeMembers || [];
+    paymentReminders = savedData.paymentReminders || [];
     nextIds = savedData.nextIds || getDefaultNextIds();
     
     console.log('Data loaded from file successfully');
@@ -329,6 +337,7 @@ export function initMockData() {
     voteRecords = [...defaultVoteRecords];
     complaints = [...defaultComplaints];
     committeeMembers = [...defaultCommitteeMembers];
+    paymentReminders = [...defaultPaymentReminders];
     nextIds = getDefaultNextIds();
     
     persistData();
@@ -355,6 +364,7 @@ export function resetToDefault() {
   voteRecords = [...defaultVoteRecords];
   complaints = [...defaultComplaints];
   committeeMembers = [...defaultCommitteeMembers];
+  paymentReminders = [...defaultPaymentReminders];
   nextIds = getDefaultNextIds();
   
   votes.forEach(vote => {

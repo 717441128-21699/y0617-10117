@@ -75,6 +75,28 @@ export interface VoteRecord {
   votedAt: string;
 }
 
+export interface NoticeReadRecord {
+  id: number;
+  noticeId: number;
+  householdId: number;
+  readAt: string;
+}
+
+export interface PaymentReminder {
+  id: number;
+  propertyFeeIds: number[];
+  householdId: number;
+  building: string;
+  unit: string;
+  roomNumber: string;
+  period: string;
+  totalAmount: number;
+  message: string;
+  status: 'active' | 'paid';
+  createdAt: string;
+  paidAt?: string;
+}
+
 export interface Complaint {
   id: number;
   title: string;

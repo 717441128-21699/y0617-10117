@@ -1,5 +1,5 @@
-import { notices, noticeRead, getNextId, persistData } from '../db/mockData';
-import type { Notice } from '../../shared/types';
+import { notices, noticeRead, getNextId, persistData, households } from '../db/mockData';
+import type { Notice, NoticeReadRecord } from '../../shared/types';
 
 const DEFAULT_HOUSEHOLD_ID = 1;
 
@@ -29,6 +29,30 @@ export function getNotices(type?: string, page: number = 1, pageSize: number = 2
   return { data, total };
 }
 
+export function getAllNoticesForAdmin(type?: string) {
+  let filtered = [...notices];
+  if (type && type !== 'all') {
+    filtered = filtered.filter(n => n.type === type);
+  }
+
+  const sorted = filtered.sort((a, b) =>
+    new Date(b.publishTime).getTime() - new Date(a.publishTime).getTime()
+  );
+
+  const data = sorted.map(notice => {
+    const readCount = noticeRead.filter(nr => nr.noticeId === notice.id).length;
+    const unreadCount = households.length - readCount;
+    return {
+      ...notice,
+      isRead: false,
+      readCount,
+      unreadCount,
+    };
+  });
+
+  return { data };
+}
+
 export function getNoticeById(id: number, householdId: number = DEFAULT_HOUSEHOLD_ID) {
   const notice = notices.find(n => n.id === id);
   if (!notice) return null;
@@ -39,13 +63,62 @@ export function markNoticeAsRead(id: number, householdId: number = DEFAULT_HOUSE
   const existing = noticeRead.find(nr => nr.noticeId === id && nr.householdId === householdId);
   if (existing) return { success: true };
 
-  noticeRead.push({
+  const record: NoticeReadRecord = {
+    id: getNextId('noticeRead'),
     noticeId: id,
     householdId,
-    readAt: new Date().toISOString(),
-  });
+    readAt: new Date().toISOString().replace('T', ' ').slice(0, 19),
+  };
+  noticeRead.push(record);
   persistData();
   return { success: true };
+}
+
+export function getNoticeStatistics(noticeId: number) {
+  const notice = notices.find(n => n.id === noticeId);
+  if (!notice) return null;
+
+  const readRecordIds = new Set(
+    noticeRead.filter(nr => nr.noticeId === noticeId).map(nr => nr.householdId)
+  );
+
+  const readHouseholds = households.filter(h => readRecordIds.has(h.id));
+  const unreadHouseholds = households.filter(h => !readRecordIds.has(h.id));
+
+  const byBuilding: Record<string, { total: number; read: number; unreadHouseholds: any[] }> = {};
+
+  households.forEach(household => {
+    if (!byBuilding[household.building]) {
+      byBuilding[household.building] = { total: 0, read: 0, unreadHouseholds: [] };
+    }
+    byBuilding[household.building].total++;
+    if (readRecordIds.has(household.id)) {
+      byBuilding[household.building].read++;
+    } else {
+      byBuilding[household.building].unreadHouseholds.push({
+        id: household.id,
+        building: household.building,
+        unit: household.unit,
+        roomNumber: household.roomNumber,
+        ownerName: household.ownerName,
+        phone: household.phone,
+      });
+    }
+  });
+
+  return {
+    noticeId,
+    noticeTitle: notice.title,
+    noticeType: notice.type,
+    publishTime: notice.publishTime,
+    totalHouseholds: households.length,
+    readCount: readHouseholds.length,
+    unreadCount: unreadHouseholds.length,
+    readRate: households.length > 0 ? Math.round((readHouseholds.length / households.length) * 100) : 0,
+    byBuilding,
+    readHouseholds,
+    unreadHouseholds,
+  };
 }
 
 export function createNotice(data: { title: string; content: string; type: Notice['type']; publisher: string }) {

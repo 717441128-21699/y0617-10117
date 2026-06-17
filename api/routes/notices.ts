@@ -13,6 +13,22 @@ router.get('/', (req, res) => {
   res.json(result);
 });
 
+router.get('/admin/list', (req, res) => {
+  const type = req.query.type as string | undefined;
+  const result = noticeService.getAllNoticesForAdmin(type);
+  res.json(result);
+});
+
+router.get('/:id/statistics', (req, res) => {
+  const id = parseInt(req.params.id);
+  const stats = noticeService.getNoticeStatistics(id);
+  if (!stats) {
+    res.status(404).json({ error: '通知不存在' });
+    return;
+  }
+  res.json({ data: stats });
+});
+
 router.get('/important', (req, res) => {
   const householdId = parseInt(req.query.householdId as string) || 1;
   const notices = noticeService.getImportantNotices(householdId);

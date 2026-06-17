@@ -3,6 +3,7 @@ import Layout from "@/components/Layout";
 import Home from "@/pages/Home";
 import Notices from "@/pages/Notices";
 import PropertyFee from "@/pages/PropertyFee";
+import PropertyFeeDetail from "@/pages/PropertyFeeDetail";
 import MaintenanceFund from "@/pages/MaintenanceFund";
 import Votes from "@/pages/Votes";
 import Complaints from "@/pages/Complaints";
@@ -17,7 +18,7 @@ export default function App() {
           <Route path="/notices" element={<Notices />} />
           <Route path="/notices/:id" element={<Notices />} />
           <Route path="/property-fee" element={<PropertyFee />} />
-          <Route path="/property-fee/:id" element={<PropertyFee />} />
+          <Route path="/property-fee/:id" element={<PropertyFeeDetail />} />
           <Route path="/maintenance-fund" element={<MaintenanceFund />} />
           <Route path="/maintenance-fund/:id" element={<MaintenanceFund />} />
           <Route path="/votes" element={<Votes />} />
