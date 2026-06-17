@@ -1,4 +1,4 @@
-import { notices, noticeRead, getNextId } from '../db/mockData';
+import { notices, noticeRead, getNextId, persistData } from '../db/mockData';
 import type { Notice } from '../../shared/types';
 
 const DEFAULT_HOUSEHOLD_ID = 1;
@@ -44,7 +44,24 @@ export function markNoticeAsRead(id: number, householdId: number = DEFAULT_HOUSE
     householdId,
     readAt: new Date().toISOString(),
   });
+  persistData();
   return { success: true };
+}
+
+export function createNotice(data: { title: string; content: string; type: Notice['type']; publisher: string }) {
+  const newNotice: Notice = {
+    id: getNextId('notice'),
+    title: data.title,
+    content: data.content,
+    type: data.type,
+    publishTime: new Date().toISOString().replace('T', ' ').slice(0, 19),
+    publisher: data.publisher,
+    isRead: false,
+  };
+  
+  notices.unshift(newNotice);
+  persistData();
+  return newNotice;
 }
 
 export function getImportantNotices(householdId: number = DEFAULT_HOUSEHOLD_ID) {

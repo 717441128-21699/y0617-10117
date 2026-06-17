@@ -11,6 +11,7 @@ import type {
 
 interface AppState {
   currentHouseholdId: number;
+  userRole: 'owner' | 'admin';
   importantNotices: Notice[];
   dashboardStats: DashboardStats | null;
   notices: Notice[];
@@ -29,6 +30,7 @@ interface AppState {
   sidebarCollapsed: boolean;
 
   setCurrentHouseholdId: (id: number) => void;
+  setUserRole: (role: 'owner' | 'admin') => void;
   setImportantNotices: (notices: Notice[]) => void;
   setDashboardStats: (stats: DashboardStats) => void;
   setNotices: (notices: Notice[]) => void;
@@ -48,6 +50,7 @@ interface AppState {
 
 export const useAppStore = create<AppState>((set) => ({
   currentHouseholdId: 1,
+  userRole: 'owner',
   importantNotices: [],
   dashboardStats: null,
   notices: [],
@@ -66,6 +69,7 @@ export const useAppStore = create<AppState>((set) => ({
   sidebarCollapsed: false,
 
   setCurrentHouseholdId: (id) => set({ currentHouseholdId: id }),
+  setUserRole: (role) => set({ userRole: role }),
   setImportantNotices: (notices) => set({ importantNotices: notices }),
   setDashboardStats: (stats) => set({ dashboardStats: stats }),
   setNotices: (notices) => set({ notices }),

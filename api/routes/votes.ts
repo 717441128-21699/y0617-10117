@@ -41,4 +41,22 @@ router.post('/:id/vote', (req, res) => {
   res.json(result);
 });
 
+router.post('/create/new', (req, res) => {
+  const { title, description, options, deadline } = req.body;
+
+  if (!title || !description || !options || !Array.isArray(options) || options.length < 2 || !deadline) {
+    res.status(400).json({ error: '请填写完整的投票信息（标题、说明、至少2个选项、截止日期）' });
+    return;
+  }
+
+  const newVote = voteService.createVote({
+    title,
+    description,
+    options,
+    deadline,
+  });
+
+  res.status(201).json({ data: newVote });
+});
+
 export default router;

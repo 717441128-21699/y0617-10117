@@ -1,4 +1,4 @@
-import { votes, voteRecords, getNextId } from '../db/mockData';
+import { votes, voteRecords, getNextId, persistData } from '../db/mockData';
 import type { Vote } from '../../shared/types';
 
 const DEFAULT_HOUSEHOLD_ID = 1;
@@ -50,8 +50,33 @@ export function castVote(voteId: number, optionIndex: number, householdId: numbe
     optionIndex,
     votedAt: new Date().toISOString(),
   });
+  persistData();
 
   return { success: true };
+}
+
+export function createVote(data: {
+  title: string;
+  description: string;
+  options: string[];
+  deadline: string;
+}) {
+  const newVote: Vote = {
+    id: getNextId('vote'),
+    title: data.title,
+    description: data.description,
+    options: data.options,
+    deadline: data.deadline,
+    createdAt: new Date().toISOString().replace('T', ' ').slice(0, 19),
+    status: 'ongoing',
+    results: data.options.map(() => 0),
+    totalVotes: 0,
+    hasVoted: false,
+  };
+
+  votes.unshift(newVote);
+  persistData();
+  return newVote;
 }
 
 export function getOngoingVotesCount() {

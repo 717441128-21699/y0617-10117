@@ -46,4 +46,22 @@ router.put('/:id/read', (req, res) => {
   res.json(result);
 });
 
+router.post('/', (req, res) => {
+  const { title, content, type, publisher } = req.body;
+  
+  if (!title || !content || !type) {
+    res.status(400).json({ error: '标题、内容和类型为必填项' });
+    return;
+  }
+
+  const newNotice = noticeService.createNotice({
+    title,
+    content,
+    type,
+    publisher: publisher || '业委会',
+  });
+
+  res.status(201).json({ data: newNotice });
+});
+
 export default router;

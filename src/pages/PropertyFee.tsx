@@ -12,6 +12,10 @@ import {
   Smartphone,
   Banknote,
   X,
+  Plus,
+  Users,
+  FileText,
+  Building,
 } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
 import { api } from '@/utils/api';
@@ -22,22 +26,37 @@ import {
   getStatusColor,
   FEE_STATUS_LABELS,
 } from '@/utils/format';
-import type { PropertyFee } from '../../shared/types';
+import type { PropertyFee, Household } from '../../shared/types';
 
 export default function PropertyFee() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { currentHouseholdId, propertyFees, setPropertyFees, unpaidTotal, setUnpaidTotal } = useAppStore();
+  const { currentHouseholdId, userRole, propertyFees, setPropertyFees, unpaidTotal, setUnpaidTotal } = useAppStore();
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'all' | 'unpaid' | 'paid'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'unpaid' | 'paid' | 'unpaid_overdue'>('all');
   const [showPayModal, setShowPayModal] = useState(false);
   const [selectedFee, setSelectedFee] = useState<PropertyFee | null>(null);
   const [payMethod, setPayMethod] = useState<'wechat' | 'alipay'>('wechat');
   const [paying, setPaying] = useState(false);
+  
+  const [allFees, setAllFees] = useState<PropertyFee[]>([]);
+  const [households, setHouseholds] = useState<Household[]>([]);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    householdId: 1,
+    period: '',
+    amount: '',
+    dueDate: '',
+  });
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     loadPropertyFees();
-  }, [currentHouseholdId]);
+    if (userRole === 'admin') {
+      loadAllFees();
+      loadHouseholds();
+    }
+  }, [currentHouseholdId, userRole, activeTab]);
 
   const loadPropertyFees = async () => {
     setLoading(true);
@@ -49,6 +68,25 @@ export default function PropertyFee() {
       console.error('加载物业费失败', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadAllFees = async () => {
+    try {
+      const status = activeTab === 'all' ? undefined : activeTab;
+      const response = await api.propertyFee.getAll(status);
+      setAllFees(response.data);
+    } catch (error) {
+      console.error('加载全部物业费失败', error);
+    }
+  };
+
+  const loadHouseholds = async () => {
+    try {
+      const response = await api.propertyFee.getHouseholds();
+      setHouseholds(response.data);
+    } catch (error) {
+      console.error('加载业主列表失败', error);
     }
   };
 
@@ -65,6 +103,9 @@ export default function PropertyFee() {
       setShowPayModal(false);
       setSelectedFee(null);
       loadPropertyFees();
+      if (userRole === 'admin') {
+        loadAllFees();
+      }
     } catch (error) {
       console.error('缴费失败', error);
       alert('缴费失败，请重试');
@@ -73,12 +114,79 @@ export default function PropertyFee() {
     }
   };
 
+  const handleCreateFee = async () => {
+    if (!createForm.householdId || !createForm.period || !createForm.amount || !createForm.dueDate) {
+      alert('请填写完整的账单信息');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const result = await api.propertyFee.create({
+        householdId: parseInt(createForm.householdId as any),
+        period: createForm.period,
+        amount: parseFloat(createForm.amount),
+        dueDate: createForm.dueDate,
+      });
+
+      if (result.success) {
+        setShowCreateModal(false);
+        setCreateForm({ householdId: 1, period: '', amount: '', dueDate: '' });
+        loadAllFees();
+        loadPropertyFees();
+      } else {
+        alert((result as any).error || '创建账单失败');
+      }
+    } catch (error) {
+      console.error('创建账单失败', error);
+      alert('创建账单失败，请重试');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleMarkPaidOffline = async (fee: PropertyFee) => {
+    if (!confirm(`确认将 ${fee.period} 物业费标记为线下已缴吗？`)) return;
+
+    try {
+      const result = await api.propertyFee.markPaidOffline(fee.id);
+      if (result.success) {
+        loadAllFees();
+        loadPropertyFees();
+      } else {
+        alert((result as any).error || '操作失败');
+      }
+    } catch (error) {
+      console.error('标记缴费失败', error);
+      alert('操作失败，请重试');
+    }
+  };
+
   const filteredFees = propertyFees.filter((fee) => {
     if (activeTab === 'all') return true;
+    if (activeTab === 'unpaid_overdue') {
+      return fee.status === 'unpaid' || fee.status === 'overdue';
+    }
     return fee.status === activeTab;
   });
 
-  const unpaidCount = propertyFees.filter((f) => f.status !== 'paid').length;
+  const displayFees = userRole === 'admin' ? allFees : filteredFees;
+
+  const unpaidCount = userRole === 'admin'
+    ? allFees.filter((f) => f.status === 'unpaid' || f.status === 'overdue').length
+    : propertyFees.filter((f) => f.status !== 'paid').length;
+
+  const totalAmount = userRole === 'admin'
+    ? allFees.reduce((sum, f) => sum + f.amount, 0)
+    : propertyFees.reduce((sum, f) => sum + f.amount, 0);
+
+  const paidAmount = userRole === 'admin'
+    ? allFees.filter((f) => f.status === 'paid').reduce((sum, f) => sum + f.amount, 0)
+    : propertyFees.filter((f) => f.status === 'paid').reduce((sum, f) => sum + f.amount, 0);
+
+  const unpaidTotalAmount = userRole === 'admin'
+    ? allFees.filter((f) => f.status === 'unpaid' || f.status === 'overdue').reduce((sum, f) => sum + f.amount, 0)
+    : unpaidTotal;
 
   const getStatusTextColor = (status: string) => {
     if (status === 'paid') return 'text-success-500';
@@ -219,11 +327,22 @@ export default function PropertyFee() {
             <CreditCard className="text-primary-600" />
             物业费管理
           </h1>
-          <p className="text-gray-500 mt-1">查看和缴纳物业费，管理您的缴费记录</p>
+          <p className="text-gray-500 mt-1">
+            {userRole === 'admin' ? '管理全小区物业费账单和缴费状态' : '查看和缴纳物业费，管理您的缴费记录'}
+          </p>
         </div>
+        {userRole === 'admin' && (
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors shadow-md hover:shadow-lg"
+          >
+            <Plus size={18} />
+            <span>录入账单</span>
+          </button>
+        )}
       </div>
 
-      {unpaidTotal > 0 && (
+      {userRole === 'owner' && unpaidTotal > 0 && (
         <div className="bg-gradient-to-r from-warning-500 to-orange-500 rounded-2xl p-5 mb-6 text-white">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -248,8 +367,8 @@ export default function PropertyFee() {
               <DollarSign size={24} className="text-primary-600" />
             </div>
             <div>
-              <p className="text-gray-500 text-sm">应缴总额</p>
-              <p className="text-xl font-bold text-gray-800">{formatCurrency(propertyFees.reduce((sum, f) => sum + f.amount, 0))}</p>
+              <p className="text-gray-500 text-sm">{userRole === 'admin' ? '账单总额' : '应缴总额'}</p>
+              <p className="text-xl font-bold text-gray-800">{formatCurrency(totalAmount)}</p>
             </div>
           </div>
         </div>
@@ -260,7 +379,7 @@ export default function PropertyFee() {
             </div>
             <div>
               <p className="text-gray-500 text-sm">已缴金额</p>
-              <p className="text-xl font-bold text-gray-800">{formatCurrency(propertyFees.filter((f) => f.status === 'paid').reduce((sum, f) => sum + f.amount, 0))}</p>
+              <p className="text-xl font-bold text-gray-800">{formatCurrency(paidAmount)}</p>
             </div>
           </div>
         </div>
@@ -271,7 +390,7 @@ export default function PropertyFee() {
             </div>
             <div>
               <p className="text-gray-500 text-sm">待缴金额</p>
-              <p className="text-xl font-bold text-gray-800">{formatCurrency(unpaidTotal)}</p>
+              <p className="text-xl font-bold text-gray-800">{formatCurrency(unpaidTotalAmount)}</p>
             </div>
           </div>
         </div>
@@ -279,12 +398,19 @@ export default function PropertyFee() {
 
       <div className="bg-white rounded-2xl shadow-sm">
         <div className="p-4 border-b border-gray-100">
-          <div className="flex gap-2">
-            {[
-              { value: 'all', label: '全部' },
-              { value: 'unpaid', label: '待缴费' },
-              { value: 'paid', label: '已缴费' },
-            ].map((tab) => (
+          <div className="flex flex-wrap gap-2">
+            {(userRole === 'admin'
+              ? [
+                  { value: 'all', label: '全部账单' },
+                  { value: 'unpaid_overdue', label: '欠费列表' },
+                  { value: 'paid', label: '已缴费' },
+                ]
+              : [
+                  { value: 'all', label: '全部' },
+                  { value: 'unpaid', label: '待缴费' },
+                  { value: 'paid', label: '已缴费' },
+                ]
+            ).map((tab) => (
               <button
                 key={tab.value}
                 onClick={() => setActiveTab(tab.value as any)}
@@ -304,14 +430,14 @@ export default function PropertyFee() {
           <div className="flex items-center justify-center h-64">
             <div className="animate-spin rounded-full h-10 w-10 border-4 border-primary-600 border-t-transparent"></div>
           </div>
-        ) : filteredFees.length === 0 ? (
+        ) : displayFees.length === 0 ? (
           <div className="p-12 text-center">
             <CreditCard size={48} className="mx-auto text-gray-300 mb-4" />
-            <p className="text-gray-500">暂无缴费记录</p>
+            <p className="text-gray-500">暂无相关账单</p>
           </div>
         ) : (
           <div className="divide-y divide-gray-100">
-            {filteredFees.map((fee, idx) => (
+            {displayFees.map((fee, idx) => (
               <div
                 key={fee.id}
                 onClick={() => navigate(`/property-fee/${fee.id}`)}
@@ -347,7 +473,17 @@ export default function PropertyFee() {
                   </div>
                   <div className="text-right">
                     <p className="text-xl font-bold text-gray-800">{formatCurrency(fee.amount)}</p>
-                    {fee.status !== 'paid' && (
+                    {userRole === 'admin' && fee.status !== 'paid' ? (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleMarkPaidOffline(fee);
+                        }}
+                        className="mt-2 px-4 py-1.5 bg-success-500 text-white text-sm rounded-lg hover:bg-green-600 transition-colors"
+                      >
+                        标记已缴
+                      </button>
+                    ) : userRole === 'owner' && fee.status !== 'paid' ? (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -357,7 +493,7 @@ export default function PropertyFee() {
                       >
                         立即缴费
                       </button>
-                    )}
+                    ) : null}
                   </div>
                 </div>
               </div>
@@ -436,6 +572,98 @@ export default function PropertyFee() {
                   <>确认支付 {formatCurrency(selectedFee.amount)}
                   </>
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+            <div className="flex items-center justify-between p-6 border-b border-gray-100">
+              <h2 className="text-xl font-semibold text-gray-800 font-serif">录入物业费账单</h2>
+              <button
+                onClick={() => setShowCreateModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X size={20} className="text-gray-500" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  选择业主
+                </label>
+                <select
+                  value={createForm.householdId}
+                  onChange={(e) => setCreateForm({ ...createForm, householdId: parseInt(e.target.value) })}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all bg-white"
+                >
+                  {households.map((h) => (
+                    <option key={h.id} value={h.id}>
+                      {h.building}{h.unit}{h.roomNumber} - {h.ownerName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    计费周期
+                  </label>
+                  <input
+                    type="text"
+                    value={createForm.period}
+                    onChange={(e) => setCreateForm({ ...createForm, period: e.target.value })}
+                    placeholder="如：2024-07"
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    应缴金额（元）
+                  </label>
+                  <input
+                    type="number"
+                    value={createForm.amount}
+                    onChange={(e) => setCreateForm({ ...createForm, amount: e.target.value })}
+                    placeholder="0.00"
+                    step="0.01"
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  缴费截止日期
+                </label>
+                <input
+                  type="date"
+                  value={createForm.dueDate}
+                  onChange={(e) => setCreateForm({ ...createForm, dueDate: e.target.value })}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 p-6 border-t border-gray-100 bg-gray-50 rounded-b-2xl">
+              <button
+                onClick={() => setShowCreateModal(false)}
+                className="flex-1 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors font-medium"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleCreateFee}
+                disabled={submitting}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <FileText size={18} />
+                {submitting ? '录入中...' : '确认录入'}
               </button>
             </div>
           </div>

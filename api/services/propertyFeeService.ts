@@ -1,5 +1,4 @@
-import { propertyFees, getNextId } from '../db/mockData';
-import { households } from '../db/mockData';
+import { propertyFees, getNextId, persistData, households } from '../db/mockData';
 import type { PropertyFee } from '../../shared/types';
 
 const DEFAULT_HOUSEHOLD_ID = 1;
@@ -47,6 +46,77 @@ export function payPropertyFee(id: number, paymentMethod: 'online' | 'offline', 
   fee.status = 'paid';
   fee.paidDate = paidDate;
   fee.paymentMethod = paymentMethod;
+  persistData();
+
+  return { success: true, paidDate };
+}
+
+export function getAllPropertyFees(status?: string, period?: string) {
+  let filtered = [...propertyFees];
+  
+  if (status && status !== 'all') {
+    if (status === 'unpaid_overdue') {
+      filtered = filtered.filter(f => f.status === 'unpaid' || f.status === 'overdue');
+    } else {
+      filtered = filtered.filter(f => f.status === status);
+    }
+  }
+  
+  if (period) {
+    filtered = filtered.filter(f => f.period === period);
+  }
+  
+  return filtered
+    .sort((a, b) => b.period.localeCompare(a.period) || a.householdId - b.householdId)
+    .map(withHouseholdInfo);
+}
+
+export function createPropertyFee(data: {
+  householdId: number;
+  period: string;
+  amount: number;
+  dueDate: string;
+}) {
+  const household = households.find(h => h.id === data.householdId);
+  if (!household) {
+    return { success: false, error: '业主不存在' };
+  }
+
+  const existing = propertyFees.find(
+    f => f.householdId === data.householdId && f.period === data.period
+  );
+  if (existing) {
+    return { success: false, error: '该户该期物业费已存在' };
+  }
+
+  const newFee: PropertyFee = {
+    id: getNextId('propertyFee'),
+    householdId: data.householdId,
+    building: household.building,
+    unit: household.unit,
+    roomNumber: household.roomNumber,
+    period: data.period,
+    amount: data.amount,
+    status: 'unpaid',
+    dueDate: data.dueDate,
+  };
+
+  propertyFees.push(newFee);
+  persistData();
+  return { success: true, data: newFee };
+}
+
+export function markAsPaidOffline(id: number) {
+  const fee = propertyFees.find(f => f.id === id);
+  if (!fee || fee.status === 'paid') {
+    return { success: false, error: '账单不存在或已缴费' };
+  }
+
+  const paidDate = new Date().toISOString().split('T')[0];
+  fee.status = 'paid';
+  fee.paidDate = paidDate;
+  fee.paymentMethod = 'offline';
+  persistData();
 
   return { success: true, paidDate };
 }
@@ -65,4 +135,8 @@ export function getPaidCount() {
     propertyFees.filter(f => f.status === 'paid').map(f => f.householdId)
   );
   return paidHouseholds.size;
+}
+
+export function getHouseholds() {
+  return households;
 }

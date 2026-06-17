@@ -9,8 +9,9 @@ import type {
   Complaint,
   CommitteeMember,
 } from '../../shared/types';
+import { loadData, saveData, hasDataFile } from './fileStorage';
 
-export let households: Household[] = [
+const defaultHouseholds: Household[] = [
   { id: 1, building: '1栋', unit: '1单元', roomNumber: '101', ownerName: '张三', phone: '13800138001' },
   { id: 2, building: '1栋', unit: '1单元', roomNumber: '102', ownerName: '李四', phone: '13800138002' },
   { id: 3, building: '1栋', unit: '2单元', roomNumber: '201', ownerName: '王五', phone: '13800138003' },
@@ -18,7 +19,7 @@ export let households: Household[] = [
   { id: 5, building: '2栋', unit: '2单元', roomNumber: '502', ownerName: '钱七', phone: '13800138005' },
 ];
 
-export let notices: Notice[] = [
+const defaultNotices: Notice[] = [
   {
     id: 1,
     title: '关于小区停水通知',
@@ -66,11 +67,11 @@ export let notices: Notice[] = [
   },
 ];
 
-export let noticeRead: { noticeId: number; householdId: number; readAt: string }[] = [
+const defaultNoticeRead: { noticeId: number; householdId: number; readAt: string }[] = [
   { noticeId: 3, householdId: 1, readAt: '2024-06-16 10:00:00' },
 ];
 
-export let propertyFees: PropertyFee[] = [
+const defaultPropertyFees: PropertyFee[] = [
   { id: 1, householdId: 1, building: '1栋', unit: '1单元', roomNumber: '101', period: '2024-06', amount: 256.50, status: 'unpaid', dueDate: '2024-06-30' },
   { id: 2, householdId: 1, building: '1栋', unit: '1单元', roomNumber: '101', period: '2024-05', amount: 256.50, status: 'paid', dueDate: '2024-05-31', paidDate: '2024-05-20', paymentMethod: 'online' },
   { id: 3, householdId: 2, building: '1栋', unit: '1单元', roomNumber: '102', period: '2024-06', amount: 312.00, status: 'overdue', dueDate: '2024-06-10' },
@@ -80,7 +81,7 @@ export let propertyFees: PropertyFee[] = [
   { id: 7, householdId: 5, building: '2栋', unit: '2单元', roomNumber: '502', period: '2024-06', amount: 264.00, status: 'unpaid', dueDate: '2024-06-30' },
 ];
 
-export let maintenanceFunds: MaintenanceFund[] = [
+const defaultMaintenanceFunds: MaintenanceFund[] = [
   { id: 1, type: 'income', amount: 500000.00, description: '初始维修基金', date: '2023-01-01', balance: 500000.00 },
   { id: 2, type: 'expense', amount: 25000.00, description: '1栋电梯维修更换钢丝绳', date: '2023-06-15', balance: 475000.00 },
   { id: 3, type: 'expense', amount: 12000.00, description: '小区监控系统升级', date: '2023-09-20', balance: 463000.00 },
@@ -89,7 +90,7 @@ export let maintenanceFunds: MaintenanceFund[] = [
   { id: 6, type: 'expense', amount: 5000.00, description: '儿童游乐设施更新', date: '2024-05-20', balance: 464500.00 },
 ];
 
-export let approvalRecords: ApprovalRecord[] = [
+const defaultApprovalRecords: ApprovalRecord[] = [
   { id: 1, fundId: 2, approver: '王明', role: '业委会主任', comment: '情况属实，同意维修', approvedAt: '2023-06-10 10:00:00', status: 'approved' },
   { id: 2, fundId: 2, approver: '张健', role: '业委会委员', comment: '需要三家报价对比，选择性价比最高的方案', approvedAt: '2023-06-11 14:30:00', status: 'approved' },
   { id: 3, fundId: 3, approver: '王明', role: '业委会主任', comment: '同意升级监控系统对小区安全很有必要', approvedAt: '2023-09-15 09:00:00', status: 'approved' },
@@ -97,7 +98,7 @@ export let approvalRecords: ApprovalRecord[] = [
   { id: 5, fundId: 6, approver: '王明', role: '业委会主任', comment: '儿童设施安全第一，同意更新', approvedAt: '2024-05-15 15:00:00', status: 'approved' },
 ];
 
-export let votes: Vote[] = [
+const defaultVotes: Vote[] = [
   {
     id: 1,
     title: '关于更换物业公司的表决',
@@ -136,7 +137,7 @@ export let votes: Vote[] = [
   },
 ];
 
-export let voteRecords: VoteRecord[] = [
+const defaultVoteRecords: VoteRecord[] = [
   { id: 1, voteId: 1, householdId: 1, optionIndex: 0, votedAt: '2024-06-02 10:30:00' },
   { id: 2, voteId: 1, householdId: 2, optionIndex: 1, votedAt: '2024-06-03 14:20:00' },
   { id: 3, voteId: 1, householdId: 3, optionIndex: 0, votedAt: '2024-06-04 09:15:00' },
@@ -149,7 +150,7 @@ export let voteRecords: VoteRecord[] = [
   { id: 10, voteId: 3, householdId: 5, optionIndex: 0, votedAt: '2024-05-24 09:45:00' },
 ];
 
-export let complaints: Complaint[] = [
+const defaultComplaints: Complaint[] = [
   {
     id: 1,
     title: '1栋楼道灯损坏',
@@ -203,7 +204,7 @@ export let complaints: Complaint[] = [
   },
 ];
 
-export let committeeMembers: CommitteeMember[] = [
+const defaultCommitteeMembers: CommitteeMember[] = [
   {
     id: 1,
     name: '王明',
@@ -251,26 +252,117 @@ export let committeeMembers: CommitteeMember[] = [
   },
 ];
 
-let nextIds = {
-  notice: notices.length + 1,
-  propertyFee: propertyFees.length + 1,
-  maintenanceFund: maintenanceFunds.length + 1,
-  vote: votes.length + 1,
-  voteRecord: voteRecords.length + 1,
-  complaint: complaints.length + 1,
-  committeeMember: committeeMembers.length + 1,
-  noticeRead: noticeRead.length + 1,
-};
+function getDefaultNextIds() {
+  return {
+    notice: defaultNotices.length + 1,
+    propertyFee: defaultPropertyFees.length + 1,
+    maintenanceFund: defaultMaintenanceFunds.length + 1,
+    vote: defaultVotes.length + 1,
+    voteRecord: defaultVoteRecords.length + 1,
+    complaint: defaultComplaints.length + 1,
+    committeeMember: defaultCommitteeMembers.length + 1,
+    noticeRead: defaultNoticeRead.length + 1,
+  };
+}
+
+export let households: Household[] = [];
+export let notices: Notice[] = [];
+export let noticeRead: { noticeId: number; householdId: number; readAt: string }[] = [];
+export let propertyFees: PropertyFee[] = [];
+export let maintenanceFunds: MaintenanceFund[] = [];
+export let approvalRecords: ApprovalRecord[] = [];
+export let votes: Vote[] = [];
+export let voteRecords: VoteRecord[] = [];
+export let complaints: Complaint[] = [];
+export let committeeMembers: CommitteeMember[] = [];
+
+let nextIds = getDefaultNextIds();
 
 export function getNextId(type: keyof typeof nextIds) {
-  return nextIds[type]++;
+  const id = nextIds[type]++;
+  persistData();
+  return id;
+}
+
+export function persistData() {
+  const data = {
+    households,
+    notices,
+    noticeRead,
+    propertyFees,
+    maintenanceFunds,
+    approvalRecords,
+    votes,
+    voteRecords,
+    complaints,
+    committeeMembers,
+    nextIds,
+  };
+  saveData(data);
 }
 
 export function initMockData() {
+  const savedData = loadData();
+  
+  if (savedData) {
+    households = savedData.households || [];
+    notices = savedData.notices || [];
+    noticeRead = savedData.noticeRead || [];
+    propertyFees = savedData.propertyFees || [];
+    maintenanceFunds = savedData.maintenanceFunds || [];
+    approvalRecords = savedData.approvalRecords || [];
+    votes = savedData.votes || [];
+    voteRecords = savedData.voteRecords || [];
+    complaints = savedData.complaints || [];
+    committeeMembers = savedData.committeeMembers || [];
+    nextIds = savedData.nextIds || getDefaultNextIds();
+    
+    console.log('Data loaded from file successfully');
+  } else {
+    households = [...defaultHouseholds];
+    notices = [...defaultNotices];
+    noticeRead = [...defaultNoticeRead];
+    propertyFees = [...defaultPropertyFees];
+    maintenanceFunds = [...defaultMaintenanceFunds];
+    approvalRecords = [...defaultApprovalRecords];
+    votes = [...defaultVotes];
+    voteRecords = [...defaultVoteRecords];
+    complaints = [...defaultComplaints];
+    committeeMembers = [...defaultCommitteeMembers];
+    nextIds = getDefaultNextIds();
+    
+    persistData();
+    console.log('Default data initialized and saved');
+  }
+
   votes.forEach(vote => {
     const records = voteRecords.filter(vr => vr.voteId === vote.id);
     vote.results = vote.options.map((_, i) => records.filter(r => r.optionIndex === i).length);
     vote.totalVotes = records.length;
   });
+  
   console.log('Mock data initialized successfully');
+}
+
+export function resetToDefault() {
+  households = [...defaultHouseholds];
+  notices = [...defaultNotices];
+  noticeRead = [...defaultNoticeRead];
+  propertyFees = [...defaultPropertyFees];
+  maintenanceFunds = [...defaultMaintenanceFunds];
+  approvalRecords = [...defaultApprovalRecords];
+  votes = [...defaultVotes];
+  voteRecords = [...defaultVoteRecords];
+  complaints = [...defaultComplaints];
+  committeeMembers = [...defaultCommitteeMembers];
+  nextIds = getDefaultNextIds();
+  
+  votes.forEach(vote => {
+    const records = voteRecords.filter(vr => vr.voteId === vote.id);
+    vote.results = vote.options.map((_, i) => records.filter(r => r.optionIndex === i).length);
+    vote.totalVotes = records.length;
+  });
+  
+  persistData();
+  console.log('Data reset to default');
 }

@@ -1,4 +1,4 @@
-import { complaints, getNextId } from '../db/mockData';
+import { complaints, getNextId, persistData } from '../db/mockData';
 import type { Complaint } from '../../shared/types';
 
 const DEFAULT_HOUSEHOLD_ID = 1;
@@ -31,21 +31,33 @@ export function createComplaint(
     content,
     images,
     status: 'pending',
-    createdAt: new Date().toISOString(),
+    createdAt: new Date().toISOString().replace('T', ' ').slice(0, 19),
     householdId,
   };
   complaints.unshift(newComplaint);
+  persistData();
   return { success: true, id: newComplaint.id };
 }
 
 export function replyComplaint(id: number, reply: string, replier: string) {
   const complaint = complaints.find(c => c.id === id);
-  if (!complaint) return { success: false };
+  if (!complaint) return { success: false, error: '投诉不存在' };
 
   complaint.status = 'completed';
   complaint.reply = reply;
   complaint.replier = replier;
-  complaint.repliedAt = new Date().toISOString();
+  complaint.repliedAt = new Date().toISOString().replace('T', ' ').slice(0, 19);
+  persistData();
+
+  return { success: true };
+}
+
+export function updateComplaintStatus(id: number, status: Complaint['status']) {
+  const complaint = complaints.find(c => c.id === id);
+  if (!complaint) return { success: false, error: '投诉不存在' };
+
+  complaint.status = status;
+  persistData();
 
   return { success: true };
 }

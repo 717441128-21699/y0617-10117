@@ -7,6 +7,9 @@ import {
   ArrowLeft,
   CheckCircle,
   FileText,
+  Plus,
+  X,
+  Send,
 } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
 import { api } from '@/utils/api';
@@ -30,10 +33,17 @@ const typeFilters = [
 export default function Notices() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { currentHouseholdId, notices, setNotices, setCurrentNotice, currentNotice } = useAppStore();
+  const { currentHouseholdId, userRole, notices, setNotices, setCurrentNotice, currentNotice, setShowStrongReminder, setImportantNotices } = useAppStore();
   const [activeFilter, setActiveFilter] = useState('all');
   const [loading, setLoading] = useState(true);
   const [detailNotice, setDetailNotice] = useState<Notice | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    title: '',
+    content: '',
+    type: 'normal' as Notice['type'],
+  });
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -77,6 +87,38 @@ export default function Notices() {
 
   const handleNoticeClick = async (notice: Notice) => {
     navigate(`/notices/${notice.id}`);
+  };
+
+  const handleCreateNotice = async () => {
+    if (!createForm.title || !createForm.content) {
+      alert('请填写通知标题和内容');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const response = await api.notices.create({
+        ...createForm,
+        publisher: '业委会',
+      });
+
+      if (response.data) {
+        setShowCreateModal(false);
+        setCreateForm({ title: '', content: '', type: 'normal' });
+        loadNotices();
+
+        if (['water', 'power', 'construction', 'important'].includes(createForm.type)) {
+          const importantRes = await api.notices.getImportant(currentHouseholdId);
+          setImportantNotices(importantRes.data);
+          setShowStrongReminder(true);
+        }
+      }
+    } catch (error) {
+      console.error('发布通知失败', error);
+      alert('发布通知失败，请重试');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const filteredNotices = notices.filter((n) => {
@@ -174,6 +216,15 @@ export default function Notices() {
           </h1>
           <p className="text-gray-500 mt-1">了解小区最新动态和重要通知</p>
         </div>
+        {userRole === 'admin' && (
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors shadow-md hover:shadow-lg"
+          >
+            <Plus size={18} />
+            <span>发布通知</span>
+          </button>
+        )}
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm p-4 mb-6">
@@ -267,6 +318,100 @@ export default function Notices() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg animate-fade-in">
+            <div className="flex items-center justify-between p-6 border-b border-gray-100">
+              <h2 className="text-xl font-semibold text-gray-800 font-serif">发布通知</h2>
+              <button
+                onClick={() => setShowCreateModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X size={20} className="text-gray-500" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  通知类型
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {typeFilters.filter(f => f.value !== 'all' && f.value !== 'important').map((type) => (
+                    <button
+                      key={type.value}
+                      onClick={() => setCreateForm({ ...createForm, type: type.value as Notice['type'] })}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                        createForm.type === type.value
+                          ? 'bg-primary-600 text-white shadow-md'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      {type.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-2">
+                  <button
+                    onClick={() => setCreateForm({ ...createForm, type: 'important' })}
+                    className={`w-full px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                      createForm.type === 'important'
+                        ? 'bg-danger-500 text-white shadow-md'
+                        : 'bg-red-50 text-danger-600 hover:bg-red-100'
+                    }`}
+                  >
+                    🔔 重要通知
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  通知标题
+                </label>
+                <input
+                  type="text"
+                  value={createForm.title}
+                  onChange={(e) => setCreateForm({ ...createForm, title: e.target.value })}
+                  placeholder="请输入通知标题"
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  通知内容
+                </label>
+                <textarea
+                  value={createForm.content}
+                  onChange={(e) => setCreateForm({ ...createForm, content: e.target.value })}
+                  placeholder="请输入通知内容..."
+                  rows={6}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all resize-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 p-6 border-t border-gray-100 bg-gray-50 rounded-b-2xl">
+              <button
+                onClick={() => setShowCreateModal(false)}
+                className="flex-1 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors font-medium"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleCreateNotice}
+                disabled={submitting}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Send size={18} />
+                {submitting ? '发布中...' : '发布通知'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

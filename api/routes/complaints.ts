@@ -60,4 +60,29 @@ router.put('/:id/reply', (req, res) => {
   res.json(result);
 });
 
+router.put('/:id/status', (req, res) => {
+  const id = parseInt(req.params.id);
+  const { status } = req.body;
+
+  if (!status) {
+    res.status(400).json({ error: '请提供状态' });
+    return;
+  }
+
+  const validStatuses: Complaint['status'][] = ['pending', 'processing', 'completed'];
+  if (!validStatuses.includes(status)) {
+    res.status(400).json({ error: '无效的状态' });
+    return;
+  }
+
+  const result = complaintService.updateComplaintStatus(id, status);
+
+  if (!result.success) {
+    res.status(400).json({ error: '状态更新失败' });
+    return;
+  }
+
+  res.json(result);
+});
+
 export default router;

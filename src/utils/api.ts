@@ -49,6 +49,12 @@ export const api = {
       if (householdId) params.append('householdId', householdId.toString());
       return request<{ data: any[] }>(`/notices/latest?${params.toString()}`);
     },
+    create: (data: { title: string; content: string; type: string; publisher?: string }) => {
+      return request<{ data: any }>('/notices', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
   },
 
   propertyFee: {
@@ -64,6 +70,26 @@ export const api = {
       return request<{ success: boolean; paidDate: string }>(`/property-fee/${id}/pay`, {
         method: 'POST',
         body: JSON.stringify({ paymentMethod, channel }),
+      });
+    },
+    getAll: (status?: string, period?: string) => {
+      const params = new URLSearchParams();
+      if (status) params.append('status', status);
+      if (period) params.append('period', period);
+      return request<{ data: any[] }>(`/property-fee/all/list?${params.toString()}`);
+    },
+    getHouseholds: () => {
+      return request<{ data: any[] }>('/property-fee/households/list');
+    },
+    create: (data: { householdId: number; period: string; amount: number; dueDate: string }) => {
+      return request<{ success: boolean; data?: any; error?: string }>('/property-fee/create/new', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+    markPaidOffline: (id: number) => {
+      return request<{ success: boolean; paidDate?: string; error?: string }>(`/property-fee/${id}/mark-paid-offline`, {
+        method: 'POST',
       });
     },
   },
@@ -97,6 +123,12 @@ export const api = {
         body: JSON.stringify({ optionIndex, householdId }),
       });
     },
+    create: (data: { title: string; description: string; options: string[]; deadline: string }) => {
+      return request<{ data: any }>('/votes/create/new', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
   },
 
   complaints: {
@@ -119,6 +151,12 @@ export const api = {
       return request<{ success: boolean }>(`/complaints/${id}/reply`, {
         method: 'PUT',
         body: JSON.stringify({ reply, replier }),
+      });
+    },
+    updateStatus: (id: number, status: string) => {
+      return request<{ success: boolean }>(`/complaints/${id}/status`, {
+        method: 'PUT',
+        body: JSON.stringify({ status }),
       });
     },
   },

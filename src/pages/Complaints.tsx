@@ -29,7 +29,7 @@ import type { Complaint } from '../../shared/types';
 export default function Complaints() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { currentHouseholdId, complaints, setComplaints } = useAppStore();
+  const { currentHouseholdId, userRole, complaints, setComplaints } = useAppStore();
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'my' | 'all'>('my');
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -40,6 +40,8 @@ export default function Complaints() {
     content: '',
   });
   const [submitting, setSubmitting] = useState(false);
+  const [replyContent, setReplyContent] = useState('');
+  const [replying, setReplying] = useState(false);
 
   const typeOptions: { value: Complaint['type']; label: string; icon: string }[] = [
     { value: 'maintenance', label: '维修维护', icon: '🔧' },
@@ -102,6 +104,24 @@ export default function Complaints() {
       alert('提交失败，请重试');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleReply = async () => {
+    if (!detailComplaint || !replyContent.trim()) {
+      alert('请输入回复内容');
+      return;
+    }
+    setReplying(true);
+    try {
+      await api.complaints.reply(detailComplaint.id, replyContent.trim(), '业委会管理员');
+      loadComplaintDetail(detailComplaint.id);
+      setReplyContent('');
+    } catch (error) {
+      console.error('回复失败', error);
+      alert('回复失败，请重试');
+    } finally {
+      setReplying(false);
     }
   };
 
@@ -194,6 +214,46 @@ export default function Complaints() {
                       {detailComplaint.repliedAt ? formatDateTime(detailComplaint.repliedAt) : ''}
                     </span>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {userRole === 'admin' && detailComplaint.status !== 'completed' && (
+              <div className="border-t border-gray-100 pt-8 mt-8">
+                <h4 className="font-medium text-gray-800 mb-4 flex items-center gap-2">
+                  <MessageSquare size={18} className="text-primary-600" />
+                  处理并回复
+                </h4>
+                <div className="space-y-4">
+                  <textarea
+                    value={replyContent}
+                    onChange={(e) => setReplyContent(e.target.value)}
+                    placeholder="请输入您的处理意见和回复内容..."
+                    rows={4}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all resize-none"
+                  />
+                  <div className="flex justify-end gap-3">
+                    <button
+                      onClick={handleReply}
+                      disabled={replying || !replyContent.trim()}
+                      className="px-6 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                      {replying ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                          回复中...
+                        </>
+                      ) : (
+                        <>
+                          <Send size={16} />
+                          提交回复
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500 text-right">
+                    回复后投诉状态将变为「已完成」，并对全体业主公开
+                  </p>
                 </div>
               </div>
             )}

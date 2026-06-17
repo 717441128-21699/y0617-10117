@@ -10,6 +10,10 @@ import {
   Calendar,
   AlertCircle,
   CheckSquare,
+  Plus,
+  X,
+  Send,
+  Trash2,
 } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
 import { api } from '@/utils/api';
@@ -25,12 +29,21 @@ import type { Vote as VoteType } from '../../shared/types';
 export default function Votes() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { currentHouseholdId, votes, setVotes } = useAppStore();
+  const { currentHouseholdId, userRole, votes, setVotes } = useAppStore();
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'all' | 'ongoing' | 'ended'>('all');
   const [detailVote, setDetailVote] = useState<VoteType | null>(null);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [voting, setVoting] = useState(false);
+  
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    title: '',
+    description: '',
+    options: ['', ''],
+    deadline: '',
+  });
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -78,6 +91,58 @@ export default function Votes() {
       alert('投票失败，请重试');
     } finally {
       setVoting(false);
+    }
+  };
+
+  const handleAddOption = () => {
+    if (createForm.options.length >= 5) {
+      alert('最多只能添加5个选项');
+      return;
+    }
+    setCreateForm({ ...createForm, options: [...createForm.options, ''] });
+  };
+
+  const handleRemoveOption = (index: number) => {
+    if (createForm.options.length <= 2) {
+      alert('至少需要2个选项');
+      return;
+    }
+    const newOptions = createForm.options.filter((_, i) => i !== index);
+    setCreateForm({ ...createForm, options: newOptions });
+  };
+
+  const handleOptionChange = (index: number, value: string) => {
+    const newOptions = [...createForm.options];
+    newOptions[index] = value;
+    setCreateForm({ ...createForm, options: newOptions });
+  };
+
+  const handleCreateVote = async () => {
+    const validOptions = createForm.options.filter(o => o.trim() !== '');
+    if (!createForm.title || !createForm.description || validOptions.length < 2 || !createForm.deadline) {
+      alert('请填写完整的投票信息（标题、说明、至少2个选项、截止日期）');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const response = await api.votes.create({
+        title: createForm.title,
+        description: createForm.description,
+        options: validOptions,
+        deadline: `${createForm.deadline} 23:59:59`,
+      });
+
+      if (response.data) {
+        setShowCreateModal(false);
+        setCreateForm({ title: '', description: '', options: ['', ''], deadline: '' });
+        loadVotes();
+      }
+    } catch (error) {
+      console.error('创建投票失败', error);
+      alert('创建投票失败，请重试');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -303,12 +368,24 @@ export default function Votes() {
           </h1>
           <p className="text-gray-500 mt-1">参与小区重要事务表决，行使业主权利</p>
         </div>
-        {ongoingCount > 0 && (
+        {userRole === 'admin' && (
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="px-5 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors flex items-center gap-2 font-medium shadow-md"
+          >
+            <Plus size={20} />
+            发起投票
+          </button>
+        )}
+      </div>
+
+      {ongoingCount > 0 && (
+        <div className="mb-6">
           <span className="bg-primary-100 text-primary-600 px-3 py-1 rounded-full text-sm font-medium">
             {ongoingCount} 个进行中
           </span>
-        )}
-      </div>
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl shadow-sm">
         <div className="p-4 border-b border-gray-100">
@@ -396,6 +473,122 @@ export default function Votes() {
           </div>
         )}
       </div>
+
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-6 border-b border-gray-100 sticky top-0 bg-white">
+              <h2 className="text-xl font-semibold text-gray-800 font-serif">发起新投票</h2>
+              <button
+                onClick={() => setShowCreateModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X size={20} className="text-gray-500" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  投票标题
+                </label>
+                <input
+                  type="text"
+                  value={createForm.title}
+                  onChange={(e) => setCreateForm({ ...createForm, title: e.target.value })}
+                  placeholder="如：是否同意更换物业公司"
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  投票说明
+                </label>
+                <textarea
+                  value={createForm.description}
+                  onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })}
+                  placeholder="请详细描述投票事项的背景、目的和相关信息..."
+                  rows={4}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all resize-none"
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    投票选项
+                  </label>
+                  <button
+                    onClick={handleAddOption}
+                    className="text-sm text-primary-600 hover:text-primary-700 font-medium flex items-center gap-1"
+                  >
+                    <Plus size={16} />
+                    添加选项
+                  </button>
+                </div>
+                <div className="space-y-3">
+                  {createForm.options.map((option, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <span className="w-6 h-6 rounded-full bg-primary-100 text-primary-600 text-sm font-medium flex items-center justify-center flex-shrink-0">
+                        {idx + 1}
+                      </span>
+                      <input
+                        type="text"
+                        value={option}
+                        onChange={(e) => handleOptionChange(idx, e.target.value)}
+                        placeholder={`选项 ${idx + 1}`}
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all text-sm"
+                      />
+                      {createForm.options.length > 2 && (
+                        <button
+                          onClick={() => handleRemoveOption(idx)}
+                          className="p-2 text-gray-400 hover:text-danger-500 transition-colors"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  截止日期
+                </label>
+                <div className="relative">
+                  <Calendar size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="date"
+                    value={createForm.deadline}
+                    onChange={(e) => setCreateForm({ ...createForm, deadline: e.target.value })}
+                    className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all"
+                  />
+                </div>
+                <p className="text-xs text-gray-500 mt-1">投票将于截止日期当天23:59:59结束</p>
+              </div>
+            </div>
+
+            <div className="flex gap-3 p-6 border-t border-gray-100 bg-gray-50 sticky bottom-0 rounded-b-2xl">
+              <button
+                onClick={() => setShowCreateModal(false)}
+                className="flex-1 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors font-medium"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleCreateVote}
+                disabled={submitting}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Send size={18} />
+                {submitting ? '发起中...' : '确认发起'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
