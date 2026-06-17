@@ -60,6 +60,7 @@ export default function PropertyFee() {
   const [submitting, setSubmitting] = useState(false);
 
   const [showBatchModal, setShowBatchModal] = useState(false);
+  const [batchMode, setBatchMode] = useState<'filter' | 'select'>('filter');
   const [batchForm, setBatchForm] = useState({
     period: '',
     building: '',
@@ -72,6 +73,7 @@ export default function PropertyFee() {
   const [batchPreviewData, setBatchPreviewData] = useState<{ willCreate: any[]; willSkip: any[]; totalAmount: number } | null>(null);
   const [batchPreviewLoading, setBatchPreviewLoading] = useState(false);
   const [batchCreating, setBatchCreating] = useState(false);
+  const [selectedHouseholdIds, setSelectedHouseholdIds] = useState<number[]>([]);
 
   const [selectedFeeIds, setSelectedFeeIds] = useState<number[]>([]);
   const [showReminderModal, setShowReminderModal] = useState(false);
@@ -233,12 +235,18 @@ export default function PropertyFee() {
       return;
     }
 
+    if (batchMode === 'select' && selectedHouseholdIds.length === 0) {
+      alert('请至少选择一个房号');
+      return;
+    }
+
     setBatchPreviewLoading(true);
     try {
       const result = await api.propertyFee.batchPreview({
         period: batchForm.period,
-        building: batchForm.building || undefined,
-        unit: batchForm.unit || undefined,
+        building: batchMode === 'filter' ? (batchForm.building || undefined) : undefined,
+        unit: batchMode === 'filter' ? (batchForm.unit || undefined) : undefined,
+        householdIds: batchMode === 'select' ? selectedHouseholdIds : undefined,
         amountPerHousehold: parseFloat(batchForm.amountPerHousehold),
         dueDate: batchForm.dueDate,
       });
@@ -265,8 +273,9 @@ export default function PropertyFee() {
     try {
       const result = await api.propertyFee.batchCreate({
         period: batchForm.period,
-        building: batchForm.building || undefined,
-        unit: batchForm.unit || undefined,
+        building: batchMode === 'filter' ? (batchForm.building || undefined) : undefined,
+        unit: batchMode === 'filter' ? (batchForm.unit || undefined) : undefined,
+        householdIds: batchMode === 'select' ? selectedHouseholdIds : undefined,
         amountPerHousehold: parseFloat(batchForm.amountPerHousehold),
         dueDate: batchForm.dueDate,
       });
@@ -275,6 +284,8 @@ export default function PropertyFee() {
         alert(`成功生成 ${result.createdCount} 条账单，跳过 ${result.skippedCount} 条`);
         setShowBatchModal(false);
         setBatchForm({ period: '', building: '', unit: '', amountPerHousehold: '', dueDate: '' });
+        setBatchMode('filter');
+        setSelectedHouseholdIds([]);
         setBatchPreviewData(null);
         loadAllFees();
         loadPropertyFees();
@@ -988,6 +999,8 @@ export default function PropertyFee() {
                 onClick={() => {
                   setShowBatchModal(false);
                   setBatchForm({ period: '', building: '', unit: '', amountPerHousehold: '', dueDate: '' });
+                  setBatchMode('filter');
+                  setSelectedHouseholdIds([]);
                   setBatchPreviewData(null);
                 }}
                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
@@ -997,6 +1010,35 @@ export default function PropertyFee() {
             </div>
 
             <div className="p-6 space-y-5">
+              <div className="flex gap-2 p-1 bg-gray-100 rounded-xl">
+                <button
+                  onClick={() => {
+                    setBatchMode('filter');
+                    setBatchPreviewData(null);
+                  }}
+                  className={`flex-1 py-2 rounded-lg font-medium text-sm transition-all ${
+                    batchMode === 'filter'
+                      ? 'bg-white text-primary-600 shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  按楼栋筛选
+                </button>
+                <button
+                  onClick={() => {
+                    setBatchMode('select');
+                    setBatchPreviewData(null);
+                  }}
+                  className={`flex-1 py-2 rounded-lg font-medium text-sm transition-all ${
+                    batchMode === 'select'
+                      ? 'bg-white text-primary-600 shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  选择具体房号
+                </button>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1031,59 +1073,132 @@ export default function PropertyFee() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    选择楼栋
-                  </label>
-                  <select
-                    value={batchForm.building}
-                    onChange={(e) => {
-                      setBatchForm({ ...batchForm, building: e.target.value, unit: '' });
-                      setBatchPreviewData(null);
-                    }}
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all bg-white"
-                  >
-                    <option value="">全部楼栋</option>
-                    {buildings.map((b) => (
-                      <option key={b} value={b}>{b}栋</option>
-                    ))}
-                  </select>
+              {batchMode === 'filter' ? (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      选择楼栋
+                    </label>
+                    <select
+                      value={batchForm.building}
+                      onChange={(e) => {
+                        setBatchForm({ ...batchForm, building: e.target.value, unit: '' });
+                        setBatchPreviewData(null);
+                      }}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all bg-white"
+                    >
+                      <option value="">全部楼栋</option>
+                      {buildings.map((b) => (
+                        <option key={b} value={b}>{b}栋</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      选择单元
+                    </label>
+                    <select
+                      value={batchForm.unit}
+                      onChange={(e) => {
+                        setBatchForm({ ...batchForm, unit: e.target.value });
+                        setBatchPreviewData(null);
+                      }}
+                      disabled={!batchForm.building}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    >
+                      <option value="">全部单元</option>
+                      {units.map((u) => (
+                        <option key={u} value={u}>{u}单元</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      截止日期 <span className="text-danger-500">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={batchForm.dueDate}
+                      onChange={(e) => {
+                        setBatchForm({ ...batchForm, dueDate: e.target.value });
+                        setBatchPreviewData(null);
+                      }}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    选择单元
-                  </label>
-                  <select
-                    value={batchForm.unit}
-                    onChange={(e) => {
-                      setBatchForm({ ...batchForm, unit: e.target.value });
-                      setBatchPreviewData(null);
-                    }}
-                    disabled={!batchForm.building}
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
-                  >
-                    <option value="">全部单元</option>
-                    {units.map((u) => (
-                      <option key={u} value={u}>{u}单元</option>
-                    ))}
-                  </select>
+              ) : (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      截止日期 <span className="text-danger-500">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={batchForm.dueDate}
+                      onChange={(e) => {
+                        setBatchForm({ ...batchForm, dueDate: e.target.value });
+                        setBatchPreviewData(null);
+                      }}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-sm font-medium text-gray-700">
+                        选择房号 <span className="text-danger-500">*</span>
+                        <span className="text-gray-400 ml-2">（已选 {selectedHouseholdIds.length} 户）</span>
+                      </label>
+                      <button
+                        onClick={() => {
+                          if (selectedHouseholdIds.length === households.length) {
+                            setSelectedHouseholdIds([]);
+                          } else {
+                            setSelectedHouseholdIds(households.map(h => h.id));
+                          }
+                          setBatchPreviewData(null);
+                        }}
+                        className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+                      >
+                        {selectedHouseholdIds.length === households.length ? '取消全选' : '全选'}
+                      </button>
+                    </div>
+                    <div className="border border-gray-200 rounded-xl max-h-48 overflow-y-auto p-2 bg-gray-50">
+                      {households.map((household) => {
+                        const isSelected = selectedHouseholdIds.includes(household.id);
+                        return (
+                          <div
+                            key={household.id}
+                            onClick={() => {
+                              if (isSelected) {
+                                setSelectedHouseholdIds(prev => prev.filter(id => id !== household.id));
+                              } else {
+                                setSelectedHouseholdIds(prev => [...prev, household.id]);
+                              }
+                              setBatchPreviewData(null);
+                            }}
+                            className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors ${
+                              isSelected ? 'bg-primary-100' : 'hover:bg-gray-100'
+                            }`}
+                          >
+                            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${
+                              isSelected
+                                ? 'bg-primary-600 border-primary-600'
+                                : 'border-gray-300'
+                            }`}>
+                              {isSelected && <CheckSquare size={14} className="text-white" />}
+                            </div>
+                            <span className={`text-sm ${isSelected ? 'text-primary-700 font-medium' : 'text-gray-700'}`}>
+                              {household.building}栋{household.unit}单元{household.roomNumber}室 - {household.ownerName}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    截止日期 <span className="text-danger-500">*</span>
-                  </label>
-                  <input
-                    type="date"
-                    value={batchForm.dueDate}
-                    onChange={(e) => {
-                      setBatchForm({ ...batchForm, dueDate: e.target.value });
-                      setBatchPreviewData(null);
-                    }}
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all"
-                  />
-                </div>
-              </div>
+              )}
 
               <button
                 onClick={handleBatchPreview}

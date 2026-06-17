@@ -62,6 +62,15 @@ export const api = {
     getStatistics: (id: number) => {
       return request<{ data: any }>(`/notices/${id}/statistics`);
     },
+    sendReminder: (id: number, sender?: string) => {
+      return request<{ success: boolean; data?: any; unreadCount?: number; unreadHouseholds?: any[]; error?: string }>(`/notices/${id}/remind`, {
+        method: 'POST',
+        body: JSON.stringify({ sender }),
+      });
+    },
+    getReminders: (id: number) => {
+      return request<{ data: any[] }>(`/notices/${id}/reminders`);
+    },
   },
 
   propertyFee: {

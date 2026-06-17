@@ -10,6 +10,7 @@ import type {
   CommitteeMember,
   NoticeReadRecord,
   PaymentReminder,
+  NoticeReminderRecord,
 } from '../../shared/types';
 import { loadData, saveData, hasDataFile } from './fileStorage';
 
@@ -74,6 +75,8 @@ const defaultNoticeRead: NoticeReadRecord[] = [
 ];
 
 const defaultPaymentReminders: PaymentReminder[] = [];
+
+const defaultNoticeReminders: NoticeReminderRecord[] = [];
 
 const defaultPropertyFees: PropertyFee[] = [
   { id: 1, householdId: 1, building: '1栋', unit: '1单元', roomNumber: '101', period: '2024-06', amount: 256.50, status: 'unpaid', dueDate: '2024-06-30' },
@@ -267,6 +270,7 @@ function getDefaultNextIds() {
     committeeMember: defaultCommitteeMembers.length + 1,
     noticeRead: defaultNoticeRead.length + 1,
     paymentReminder: defaultPaymentReminders.length + 1,
+    noticeReminder: defaultNoticeReminders.length + 1,
   };
 }
 
@@ -281,6 +285,7 @@ export let voteRecords: VoteRecord[] = [];
 export let complaints: Complaint[] = [];
 export let committeeMembers: CommitteeMember[] = [];
 export let paymentReminders: PaymentReminder[] = [];
+export let noticeReminders: NoticeReminderRecord[] = [];
 
 let nextIds = getDefaultNextIds();
 
@@ -303,6 +308,7 @@ export function persistData() {
     complaints,
     committeeMembers,
     paymentReminders,
+    noticeReminders,
     nextIds,
   };
   saveData(data);
@@ -323,7 +329,22 @@ export function initMockData() {
     complaints = savedData.complaints || [];
     committeeMembers = savedData.committeeMembers || [];
     paymentReminders = savedData.paymentReminders || [];
-    nextIds = savedData.nextIds || getDefaultNextIds();
+    noticeReminders = savedData.noticeReminders || [];
+    
+    const maxId = (arr: any[]) => arr.length > 0 ? Math.max(...arr.map((item: any) => item.id)) : 0;
+    
+    nextIds = {
+      notice: Math.max(savedData.nextIds?.notice || 0, maxId(notices) + 1),
+      propertyFee: Math.max(savedData.nextIds?.propertyFee || 0, maxId(propertyFees) + 1),
+      maintenanceFund: Math.max(savedData.nextIds?.maintenanceFund || 0, maxId(maintenanceFunds) + 1),
+      vote: Math.max(savedData.nextIds?.vote || 0, maxId(votes) + 1),
+      voteRecord: Math.max(savedData.nextIds?.voteRecord || 0, maxId(voteRecords) + 1),
+      complaint: Math.max(savedData.nextIds?.complaint || 0, maxId(complaints) + 1),
+      committeeMember: Math.max(savedData.nextIds?.committeeMember || 0, maxId(committeeMembers) + 1),
+      noticeRead: Math.max(savedData.nextIds?.noticeRead || 0, maxId(noticeRead) + 1),
+      paymentReminder: Math.max(savedData.nextIds?.paymentReminder || 0, maxId(paymentReminders) + 1),
+      noticeReminder: Math.max(savedData.nextIds?.noticeReminder || 0, maxId(noticeReminders) + 1),
+    };
     
     console.log('Data loaded from file successfully');
   } else {
@@ -338,6 +359,7 @@ export function initMockData() {
     complaints = [...defaultComplaints];
     committeeMembers = [...defaultCommitteeMembers];
     paymentReminders = [...defaultPaymentReminders];
+    noticeReminders = [...defaultNoticeReminders];
     nextIds = getDefaultNextIds();
     
     persistData();
@@ -365,6 +387,7 @@ export function resetToDefault() {
   complaints = [...defaultComplaints];
   committeeMembers = [...defaultCommitteeMembers];
   paymentReminders = [...defaultPaymentReminders];
+  noticeReminders = [...defaultNoticeReminders];
   nextIds = getDefaultNextIds();
   
   votes.forEach(vote => {

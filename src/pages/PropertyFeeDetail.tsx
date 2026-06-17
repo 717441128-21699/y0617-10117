@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   CreditCard,
   MapPin,
@@ -23,6 +23,8 @@ import type { PropertyFee } from '../../shared/types';
 export default function PropertyFeeDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab') || 'all';
   const { userRole, setPropertyFees, setUnpaidTotal, currentHouseholdId } = useAppStore();
   const [loading, setLoading] = useState(true);
   const [fee, setFee] = useState<PropertyFee | null>(null);
@@ -135,7 +137,7 @@ export default function PropertyFeeDetail() {
     return (
       <div className="max-w-4xl mx-auto">
         <button
-          onClick={() => navigate('/property-fee')}
+          onClick={() => navigate(`/property-fee?tab=${tabParam}`)}
           className="flex items-center gap-2 text-gray-600 hover:text-primary-600 mb-6 transition-colors"
         >
           <ArrowLeft size={20} />
@@ -152,7 +154,7 @@ export default function PropertyFeeDetail() {
   return (
     <div className="max-w-4xl mx-auto animate-fade-in">
       <button
-        onClick={() => navigate('/property-fee')}
+        onClick={() => navigate(`/property-fee?tab=${tabParam}`)}
         className="flex items-center gap-2 text-gray-600 hover:text-primary-600 mb-6 transition-colors"
       >
         <ArrowLeft size={20} />

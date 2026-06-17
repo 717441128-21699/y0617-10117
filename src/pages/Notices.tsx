@@ -24,7 +24,7 @@ import {
   NOTICE_TYPE_LABELS,
   truncateText,
 } from '@/utils/format';
-import type { Notice, Household } from '../../shared/types';
+import type { Notice, Household, NoticeReminderRecord } from '../../shared/types';
 
 const typeFilters = [
   { value: 'all', label: '全部' },
@@ -76,6 +76,8 @@ export default function Notices() {
   const [noticeStatistics, setNoticeStatistics] = useState<NoticeStatistics | null>(null);
   const [statisticsLoading, setStatisticsLoading] = useState(false);
   const [reminding, setReminding] = useState(false);
+  const [reminderHistory, setReminderHistory] = useState<NoticeReminderRecord[]>([]);
+  const [reminderHistoryLoading, setReminderHistoryLoading] = useState(false);
 
   useEffect(() => {
     if (userRole === 'admin') {
@@ -180,8 +182,11 @@ export default function Notices() {
   const loadNoticeStatistics = async (noticeId: number) => {
     setStatisticsLoading(true);
     try {
-      const response = await api.notices.getStatistics(noticeId);
-      setNoticeStatistics(response.data as NoticeStatistics);
+      const [statsResponse] = await Promise.all([
+        api.notices.getStatistics(noticeId),
+        loadReminderHistory(noticeId),
+      ]);
+      setNoticeStatistics(statsResponse.data as NoticeStatistics);
       setShowStatisticsModal(true);
     } catch (error) {
       console.error('加载通知统计失败', error);
@@ -190,11 +195,38 @@ export default function Notices() {
     }
   };
 
-  const handleRemindUnread = async (_noticeId: number) => {
+  const getHouseholdById = (householdId: number): Household | undefined => {
+    if (!noticeStatistics) return undefined;
+    const allHouseholds = [
+      ...noticeStatistics.readHouseholds,
+      ...noticeStatistics.unreadHouseholds,
+    ];
+    return allHouseholds.find(h => h.id === householdId);
+  };
+
+  const loadReminderHistory = async (noticeId: number) => {
+    setReminderHistoryLoading(true);
+    try {
+      const response = await api.notices.getReminders(noticeId);
+      setReminderHistory(response.data as NoticeReminderRecord[]);
+    } catch (error) {
+      console.error('加载提醒历史失败', error);
+      setReminderHistory([]);
+    } finally {
+      setReminderHistoryLoading(false);
+    }
+  };
+
+  const handleRemindUnread = async (noticeId: number) => {
     setReminding(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 800));
-      alert('已再次提醒未读住户！');
+      const response = await api.notices.sendReminder(noticeId);
+      if (response.success) {
+        alert(`提醒发送成功！已提醒 ${response.unreadCount || 0} 位未读住户。`);
+        await loadReminderHistory(noticeId);
+      } else {
+        alert(response.error || '提醒发送失败，请重试');
+      }
     } catch (error) {
       console.error('提醒失败', error);
       alert('提醒失败，请重试');
@@ -578,6 +610,78 @@ export default function Notices() {
                         </div>
                       </div>
                     )}
+
+                    <div className="border-t border-gray-200 pt-6">
+                      <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                        <Bell size={18} className="text-primary-600" />
+                        提醒历史
+                      </h3>
+                      {reminderHistoryLoading ? (
+                        <div className="flex items-center justify-center h-32">
+                          <div className="animate-spin rounded-full h-8 w-8 border-4 border-primary-600 border-t-transparent"></div>
+                        </div>
+                      ) : reminderHistory.length === 0 ? (
+                        <div className="bg-gray-50 rounded-xl p-8 text-center">
+                          <Bell size={40} className="mx-auto text-gray-300 mb-3" />
+                          <p className="text-gray-500">暂无提醒记录</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {reminderHistory.map((reminder) => (
+                            <div key={reminder.id} className="bg-gray-50 rounded-xl p-5">
+                              <div className="flex items-start justify-between mb-3">
+                                <div className="flex items-center gap-3">
+                                  <div className="p-2 bg-primary-100 rounded-lg">
+                                    <Megaphone size={18} className="text-primary-600" />
+                                  </div>
+                                  <div>
+                                    <p className="font-medium text-gray-800">
+                                      发送人：{reminder.sender}
+                                    </p>
+                                    <p className="text-sm text-gray-500 flex items-center gap-1">
+                                      <Clock size={14} />
+                                      {formatDateTime(reminder.createdAt)}
+                                    </p>
+                                  </div>
+                                </div>
+                                <span className="px-3 py-1 bg-primary-100 text-primary-700 rounded-full text-sm font-medium">
+                                  {reminder.targetHouseholdIds.length} 户
+                                </span>
+                              </div>
+                              {reminder.message && (
+                                <div className="mb-3 p-3 bg-white rounded-lg">
+                                  <p className="text-sm text-gray-600">
+                                    <span className="font-medium text-gray-700">提醒消息：</span>
+                                    {reminder.message}
+                                  </p>
+                                </div>
+                              )}
+                              <div>
+                                <p className="text-sm font-medium text-gray-700 mb-2">
+                                  提醒住户：
+                                </p>
+                                <div className="flex flex-wrap gap-2">
+                                  {reminder.targetHouseholdIds.map((hhId) => {
+                                    const household = getHouseholdById(hhId);
+                                    return (
+                                      <span
+                                        key={hhId}
+                                        className="px-2 py-1 bg-white border border-gray-200 text-gray-700 text-xs rounded-md"
+                                      >
+                                        {household
+                                          ? `${household.building}${household.unit}${household.roomNumber} - ${household.ownerName}`
+                                          : `住户ID: ${hhId}`
+                                        }
+                                      </span>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}

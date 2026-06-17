@@ -29,6 +29,23 @@ router.get('/:id/statistics', (req, res) => {
   res.json({ data: stats });
 });
 
+router.post('/:id/remind', (req, res) => {
+  const id = parseInt(req.params.id);
+  const { sender } = req.body;
+  const result = noticeService.sendNoticeReminder(id, sender);
+  if (!result.success) {
+    res.status(400).json({ error: (result as any).error });
+    return;
+  }
+  res.status(201).json(result);
+});
+
+router.get('/:id/reminders', (req, res) => {
+  const id = parseInt(req.params.id);
+  const data = noticeService.getNoticeReminders(id);
+  res.json({ data });
+});
+
 router.get('/important', (req, res) => {
   const householdId = parseInt(req.query.householdId as string) || 1;
   const notices = noticeService.getImportantNotices(householdId);

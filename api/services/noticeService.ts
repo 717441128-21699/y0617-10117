@@ -1,5 +1,5 @@
-import { notices, noticeRead, getNextId, persistData, households } from '../db/mockData';
-import type { Notice, NoticeReadRecord } from '../../shared/types';
+import { notices, noticeRead, noticeReminders, getNextId, persistData, households } from '../db/mockData';
+import type { Notice, NoticeReadRecord, NoticeReminderRecord } from '../../shared/types';
 
 const DEFAULT_HOUSEHOLD_ID = 1;
 
@@ -152,4 +152,59 @@ export function getLatestNotices(limit: number = 3, householdId: number = DEFAUL
   );
   const latest = sorted.slice(0, limit);
   return latest.map(n => attachIsRead(n, householdId));
+}
+
+export function sendNoticeReminder(noticeId: number, sender: string = '业委会管理员') {
+  const notice = notices.find(n => n.id === noticeId);
+  if (!notice) {
+    return { success: false, error: '通知不存在' };
+  }
+
+  const readRecordIds = new Set(
+    noticeRead.filter(nr => nr.noticeId === noticeId).map(nr => nr.householdId)
+  );
+
+  const unreadHouseholds = households.filter(h => !readRecordIds.has(h.id));
+  
+  if (unreadHouseholds.length === 0) {
+    return { success: false, error: '所有住户都已阅读此通知' };
+  }
+
+  const defaultMessage = `【重要通知提醒】${notice.title}。请您及时阅读了解详情。`;
+
+  const reminder: NoticeReminderRecord = {
+    id: getNextId('noticeReminder'),
+    noticeId,
+    sender,
+    targetHouseholdIds: unreadHouseholds.map(h => h.id),
+    message: defaultMessage,
+    createdAt: new Date().toISOString().replace('T', ' ').slice(0, 19),
+  };
+
+  noticeReminders.push(reminder);
+  persistData();
+
+  return {
+    success: true,
+    data: reminder,
+    unreadCount: unreadHouseholds.length,
+    unreadHouseholds,
+  };
+}
+
+export function getNoticeReminders(noticeId?: number) {
+  let filtered = [...noticeReminders];
+  if (noticeId) {
+    filtered = filtered.filter(r => r.noticeId === noticeId);
+  }
+  
+  return filtered
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .map(reminder => {
+      const targetHouseholds = households.filter(h => reminder.targetHouseholdIds.includes(h.id));
+      return {
+        ...reminder,
+        targetHouseholds,
+      };
+    });
 }

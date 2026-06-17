@@ -82,6 +82,15 @@ export interface NoticeReadRecord {
   readAt: string;
 }
 
+export interface NoticeReminderRecord {
+  id: number;
+  noticeId: number;
+  sender: string;
+  targetHouseholdIds: number[];
+  message: string;
+  createdAt: string;
+}
+
 export interface PaymentReminder {
   id: number;
   propertyFeeIds: number[];
